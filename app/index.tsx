@@ -54,7 +54,7 @@ const styles = StyleSheet.create({
 export default App;
 */
 import React, { useRef, useState } from 'react';
-import { View, StyleSheet, Button, Animated, Image } from 'react-native';
+import { View, StyleSheet, Button, Animated, Image, GestureResponderEvent, Dimensions } from 'react-native';
 import Card, { CardRef } from './cards';
 
 const shuffleDeck = (deck: number[]): number[] => {
@@ -67,11 +67,15 @@ const shuffleDeck = (deck: number[]): number[] => {
 };
 
 const CardList = () => {
+    const windowWidth = Dimensions.get('window').width;
+    const windowHeight = Dimensions.get('window').height;
+
     const [deck, setDeck] = useState<number[]>(shuffleDeck([1, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 5, 5, 6, 7, 8, 9, 10, 0]));
     const handleShuffle = () => {
         setDeck(shuffleDeck(deck));
     };
     const [handCards, setHandCards] = useState<{ id: number; value: number, opacity: Animated.Value, translateY: Animated.Value}[]>([]);
+    const [hoveredCardId, setHoveredCardId] = useState<number | null>(null);
 
     // Refs for all cards
     const cardRefs = useRef<{ [key: number]: React.RefObject<CardRef> }>({});
@@ -116,28 +120,65 @@ const CardList = () => {
         });
     }
 
-    const handlePressIn = (card: { id: number }) => {
-        const currentCard = handCards.find((c) => c.id === card.id);
-        if (currentCard) {
-            Animated.timing(currentCard.translateY, {
-                toValue: -30, // Lift the card by 10 pixels
+    const handleMove = (e: GestureResponderEvent) => {
+        const { pageX, locationY } = e.nativeEvent;
+        console.log(pageX, locationY);
+
+        let currentlyHoveredCardId: number | null = null;
+
+        handCards.forEach((card, index) => {
+            // Define the card's position and dimensions
+            const cardXStart = index * 176 + 10; // Example horizontal spacing for cards
+            const cardXEnd = cardXStart + 176;
+            const cardYStart = 0;
+            const cardYEnd = 256;
+
+            // Check if the finger is over the card
+            if (
+                pageX >= cardXStart &&
+                pageX <= cardXEnd &&
+                locationY >= cardYStart &&
+                locationY <= cardYEnd
+            ) {
+                currentlyHoveredCardId = card.id;
+
+                // If it's a new hover, lift the card
+                if (hoveredCardId !== card.id) {
+                    Animated.timing(card.translateY, {
+                        toValue: -30,
+                        duration: 150,
+                        useNativeDriver: true,
+                    }).start();
+                }
+            } else if (hoveredCardId === card.id) {
+                // If the finger moves away, lower the previously hovered card
+                Animated.timing(card.translateY, {
+                    toValue: 0,
+                    duration: 150,
+                    useNativeDriver: true,
+                }).start();
+            }
+        });
+
+        // Update the currently hovered card
+        setHoveredCardId(currentlyHoveredCardId);
+    };
+
+    const handleRelease = () => {
+        if (hoveredCardId !== null) {
+            console.log('Card Selected:', hoveredCardId);
+        }
+
+        // Lower any lifted card
+        handCards.forEach((card) => {
+            Animated.timing(card.translateY, {
+                toValue: 0,
                 duration: 150,
                 useNativeDriver: true,
             }).start();
-        }
-    };
+        });
 
-    const handlePressOut = (card: { id: number }) => {
-        const currentCard = handCards.find((c) => c.id === card.id);
-        if (currentCard) {
-            Animated.timing(currentCard.translateY, {
-                toValue: 0, // Return the card to its original position
-                duration: 150,
-                useNativeDriver: true,
-            }).start(() => {
-                console.log("Card Selected"); // Log when the card is selected
-            });
-        }
+        setHoveredCardId(null); // Reset hover state
     };
 
     return (
@@ -150,12 +191,13 @@ const CardList = () => {
                     <Image source={require('../assets/cards/cardback_4x.png')} style={styles.cardImage} />
                 </Animated.View>
             </View>
-            <View style={styles.hand}>
+            <View style={styles.hand}
+                  onStartShouldSetResponder={() => true}
+                  onResponderMove={handleMove}
+                  onResponderRelease={handleRelease}
+            >
                 {handCards.map((card) => (
-                    <Animated.View key={card.id} style={[ styles.cardWrapper, {opacity: card.opacity, transform: [{translateY: card.translateY}] }]}
-                                   onStartShouldSetResponder={() => true}
-                                   onResponderGrant={() => handlePressIn(card)}
-                                   onResponderRelease={() => handlePressOut(card)}>
+                    <Animated.View key={card.id} style={[ styles.cardWrapper, {opacity: card.opacity, transform: [{translateY: card.translateY}] }]}>
                         <Card ref={cardRefs.current[card.id]} n={card.value} />
                     </Animated.View>
                 ))}
