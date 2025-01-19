@@ -81,6 +81,10 @@ const CardList = () => {
             console.log("No more cards in the deck");
             return;
         }
+        if (handCards.length == 2) {
+            console.log("Can't have more than 2 cards simultaneously");
+            return;
+        }
 
         const newCard = {id: handCards.length + 1, value: deck[deck.length - 1], opacity: new Animated.Value(0) }; // Random card value
         setHandCards((prev) => [...prev, newCard]);
@@ -97,7 +101,7 @@ const CardList = () => {
                 useNativeDriver: true,
             }),
             Animated.timing(drawnCardPosition, {
-                toValue: {x: 8, y: 312}, // Move to hand position (customize layout)
+                toValue: {x: (handCards.length == 0 ? 8 : 98), y: 312}, // Move to hand position (customize layout)
                 duration: 500,
                 useNativeDriver: true,
             }),
@@ -159,7 +163,7 @@ const styles = StyleSheet.create({
         marginTop: 20,
     },
     cardWrapper: {
-        marginHorizontal: 10,
+        marginHorizontal: 2,
     },
 });
 export default CardList;

@@ -213,9 +213,9 @@ export type CardRef = {
     flipCard: () => void;
 };
 
-const Card = forwardRef<CardRef, CardProps>(({ n }, ref) => {
-    const rotation = useRef(new Animated.Value(0)).current;
+const Card = forwardRef<CardRef, CardProps>((props:CardProps, ref) => {
     const [isFront, setIsFront] = useState(false);
+    const rotation = useRef(new Animated.Value(isFront ? 0 : 1)).current;
 
     const flipCard = () => {
         Animated.timing(rotation, {
@@ -252,7 +252,7 @@ const Card = forwardRef<CardRef, CardProps>(({ n }, ref) => {
                     },
                 ]}
             >
-                <Image source={card_imgs[n]} style={styles.cardImage} />
+                <Image source={card_imgs[props.n]} style={styles.cardImage} />
             </Animated.View>
             {/* Back of the card */}
             <Animated.View
