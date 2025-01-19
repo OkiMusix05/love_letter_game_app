@@ -71,7 +71,7 @@ const CardList = () => {
     const handleShuffle = () => {
         setDeck(shuffleDeck(deck));
     };
-    const [handCards, setHandCards] = useState<{ id: number; value: number, opacity: Animated.Value}[]>([]);
+    const [handCards, setHandCards] = useState<{ id: number; value: number, opacity: Animated.Value, translateY: Animated.Value}[]>([]);
 
     // Refs for all cards
     const cardRefs = useRef<{ [key: number]: React.RefObject<CardRef> }>({});
@@ -86,7 +86,7 @@ const CardList = () => {
             return;
         }
 
-        const newCard = {id: handCards.length + 1, value: deck[deck.length - 1], opacity: new Animated.Value(0) }; // Random card value
+        const newCard = {id: handCards.length + 1, value: deck[deck.length - 1], opacity: new Animated.Value(0), translateY: new Animated.Value(0) }; // Random card value
         setHandCards((prev) => [...prev, newCard]);
         setDeck(deck.slice(0, deck.length - 1));
 
@@ -116,6 +116,30 @@ const CardList = () => {
         });
     }
 
+    const handlePressIn = (card: { id: number }) => {
+        const currentCard = handCards.find((c) => c.id === card.id);
+        if (currentCard) {
+            Animated.timing(currentCard.translateY, {
+                toValue: -30, // Lift the card by 10 pixels
+                duration: 150,
+                useNativeDriver: true,
+            }).start();
+        }
+    };
+
+    const handlePressOut = (card: { id: number }) => {
+        const currentCard = handCards.find((c) => c.id === card.id);
+        if (currentCard) {
+            Animated.timing(currentCard.translateY, {
+                toValue: 0, // Return the card to its original position
+                duration: 150,
+                useNativeDriver: true,
+            }).start(() => {
+                console.log("Card Selected"); // Log when the card is selected
+            });
+        }
+    };
+
     return (
         <View style={styles.container}>
             <Button title="Draw Card" onPress={addCard} />
@@ -128,7 +152,10 @@ const CardList = () => {
             </View>
             <View style={styles.hand}>
                 {handCards.map((card) => (
-                    <Animated.View key={card.id} style={[ styles.cardWrapper, {opacity: card.opacity }]}>
+                    <Animated.View key={card.id} style={[ styles.cardWrapper, {opacity: card.opacity, transform: [{translateY: card.translateY}] }]}
+                                   onStartShouldSetResponder={() => true}
+                                   onResponderGrant={() => handlePressIn(card)}
+                                   onResponderRelease={() => handlePressOut(card)}>
                         <Card ref={cardRefs.current[card.id]} n={card.value} />
                     </Animated.View>
                 ))}
