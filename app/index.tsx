@@ -19,7 +19,10 @@ const App = () => {
     const handleShuffle = () => {
         setDeck(shuffleDeck(deck));
     };
-    const [handCards, setHandCards] = useState<{ id: number; value: number, opacity: Animated.Value, translateY: Animated.Value}[]>([]);
+    const [handCards, setHandCards] = useState<{
+        id: number; value: number, opacity: Animated.Value, translateY: Animated.Value,
+        frameOpacity: Animated.Value,
+    }[]>([]);
     const [hoveredCardId, setHoveredCardId] = useState<number | null>(null);
     const [liftedCardId, setLiftedCardId] = useState<number | null>(null); // Track lifted card
     const [selectedCardId, setSelectedCardId] = useState<number | null>(null);
@@ -38,7 +41,10 @@ const App = () => {
             return;
         }
 
-        const newCard = {id: handCards.length + 1, value: deck[deck.length - 1], opacity: new Animated.Value(0), translateY: new Animated.Value(0) }; // Random card value
+        const newCard = {
+            id: handCards.length + 1, value: deck[deck.length - 1], opacity: new Animated.Value(0),
+            translateY: new Animated.Value(0), frameOpacity: new Animated.Value(0),
+        }; // Random card value
         setHandCards((prev) => [...prev, newCard]);
         setDeck(deck.slice(0, deck.length - 1));
 
@@ -80,82 +86,95 @@ const App = () => {
 
     // Selecting a Card
     const holdTimeout = useRef<NodeJS.Timeout | null>(null);
-    const frameOpacity = useRef(new Animated.Value(0)).current;
-    if (selectedCardId !== null) {
-        if (holdTimeout.current) {
-            clearTimeout(holdTimeout.current);
-        }
-        holdTimeout.current = setTimeout(() => {
-            if (hoveredCardId === selectedCardId) { // Ensure the same card is still hovered
-                Animated.timing(frameOpacity, {
-                    toValue: 1, // Fully visible
+
+    const selectCard = (selectedCardId: number | null) => {
+        if (selectedCardId !== null) {
+            if (holdTimeout.current) {
+                clearTimeout(holdTimeout.current);
+            }
+            holdTimeout.current = setTimeout(() => {
+                const selectedCard = handCards.find(card => card.id === selectedCardId);
+                if (selectedCard && hoveredCardId === selectedCardId) { // Ensure the same card is still hovered
+                    Animated.timing(selectedCard.frameOpacity, {
+                        toValue: 1, // Fully visible
+                        duration: 300,
+                        useNativeDriver: true,
+                    }).start();
+                }
+            }, 1000); // 1-second delay
+        } else {
+            if (holdTimeout.current) {
+                clearTimeout(holdTimeout.current);
+            }
+            handCards.forEach(card => {
+                Animated.timing(card.frameOpacity, {
+                    toValue: 0, // Fully transparent
                     duration: 300,
                     useNativeDriver: true,
                 }).start();
-            }
-        }, 1000); // 1-second delay
-    } else {
-        if (holdTimeout.current) {
-            clearTimeout(holdTimeout.current);
+            });
         }
-        Animated.timing(frameOpacity, {
-            toValue: 0, // Fully visible
-            duration: 300,
-            useNativeDriver: true,
-        }).start();
+    };
+    if (handCards.length === 2) {
+        selectCard(selectedCardId);
     }
+
     const handleMove = (e: GestureResponderEvent) => {
-        const { pageX, locationY } = e.nativeEvent;
-        //console.log(pageX, locationY);
+        if (handCards.length === 2) {
+            const { pageX, locationY } = e.nativeEvent;
+            //console.log(pageX, locationY);
 
-        let currentlyHoveredCardId: number | null = null;
+            let currentlyHoveredCardId: number | null = null;
 
-        handCards.forEach((card, index) => {
-            // Define the card's position and dimensions
-            const cardXStart = index * 176 + 10; // Example horizontal spacing for cards
-            const cardXEnd = cardXStart + 176;
-            const cardYStart = 0;
-            const cardYEnd = 256;
+            handCards.forEach((card, index) => {
+                // Define the card's position and dimensions
+                const cardXStart = index * 176 + 10; // Example horizontal spacing for cards
+                const cardXEnd = cardXStart + 176;
+                const cardYStart = 0;
+                const cardYEnd = 256;
 
-            // Check if the finger is over the card
-            if (
-                pageX >= cardXStart &&
-                pageX <= cardXEnd &&
-                locationY >= cardYStart &&
-                locationY <= cardYEnd
-            ) {
-                currentlyHoveredCardId = card.id;
+                // Check if the finger is over the card
+                if (
+                    pageX >= cardXStart &&
+                    pageX <= cardXEnd &&
+                    locationY >= cardYStart &&
+                    locationY <= cardYEnd
+                ) {
+                    currentlyHoveredCardId = card.id;
 
-                // Lift the card if it's the hovered card
-                if (hoveredCardId !== card.id) {
+                    // Lift the card if it's the hovered card
+                    if (hoveredCardId !== card.id) {
+                        Animated.timing(card.translateY, {
+                            toValue: -30,
+                            duration: 150,
+                            useNativeDriver: true,
+                        }).start();
+                        setSelectedCardId(card.id);
+                    }
+
+                    // Update the position of the lifted card
+                    if (liftedCardId === card.id) {
+                        Animated.timing(card.translateY, {
+                            toValue: locationY - 128, // Adjust this to position it relative to the finger
+                            duration: 0, // Instant move
+                            useNativeDriver: true,
+                        }).start();
+                    }
+                } else if (hoveredCardId === card.id) {
+                    // Lower the card if the finger moves away
                     Animated.timing(card.translateY, {
-                        toValue: -30,
+                        toValue: 0,
                         duration: 150,
                         useNativeDriver: true,
                     }).start();
-                    setSelectedCardId(card.id);
                 }
+            });
 
-                // Update the position of the lifted card
-                if (liftedCardId === card.id) {
-                    Animated.timing(card.translateY, {
-                        toValue: locationY - 128, // Adjust this to position it relative to the finger
-                        duration: 0, // Instant move
-                        useNativeDriver: true,
-                    }).start();
-                }
-            } else if (hoveredCardId === card.id) {
-                // Lower the card if the finger moves away
-                Animated.timing(card.translateY, {
-                    toValue: 0,
-                    duration: 150,
-                    useNativeDriver: true,
-                }).start();
-            }
-        });
-
-        // Update the currently hovered card
-        setHoveredCardId(currentlyHoveredCardId);
+            // Update the currently hovered card
+            setHoveredCardId(currentlyHoveredCardId);
+        } else if (handCards.length === 1) {
+            // Add info about the card here
+        }
     };
 
     const handleRelease = () => {
@@ -209,7 +228,7 @@ const App = () => {
                                    //onResponderRelease={handleRelease}
                     >
                         <Card ref={cardRefs.current[card.id]} n={card.value}/>
-                        <Animated.View style={[StyleSheet.absoluteFillObject, {opacity: frameOpacity}]}>
+                        <Animated.View style={[StyleSheet.absoluteFillObject, {opacity: card.frameOpacity}]}>
                             <Image source={require('../assets/images/frames/card_select_frame_purple.png')}
                                    /*style={StyleSheet.absoluteFillObject}*//>
                         </Animated.View>
