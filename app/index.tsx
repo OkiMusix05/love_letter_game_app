@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { View, StyleSheet, Button, Animated, Image, GestureResponderEvent, Dimensions, Easing } from 'react-native';
 import Card, { CardRef, getDeckImage } from './cards';
+import * as Haptics from 'expo-haptics';
 
 const shuffleDeck = (deck: number[]): number[] => {
     const shuffledDeck = [...deck]; // Create a copy of the deck to avoid mutating the original state
@@ -99,7 +100,9 @@ const App = () => {
                         toValue: 1, // Fully visible
                         duration: 300,
                         useNativeDriver: true,
-                    }).start();
+                    }).start(() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    });
                 }
             }, 1000); // 1-second delay
         } else {
