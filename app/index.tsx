@@ -1,61 +1,6 @@
-/*
-import React, { useRef, useState } from 'react';
-import { View, StyleSheet, Button, Image } from 'react-native';
-import Card, { CardRef } from './cards';
-
-const App = () => {
-    const deck:number[] = [1, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 5, 5, 6, 7, 8, 9, 10, 0];
-    const [cards, setCards] = useState([
-        { id: 1, value: 3 },
-    ]);
-
-    // Refs for all cards
-    const cardRefs = useRef<{ [key: number]: React.RefObject<CardRef> }>({});
-
-    // Initialize refs dynamically
-    cards.forEach((card) => {
-        if (!cardRefs.current[card.id]) {
-            cardRefs.current[card.id] = React.createRef<CardRef>();
-        }
-    });
-
-    const handleFlip = (id: number) => {
-        const cardRef = cardRefs.current[id];
-        if (cardRef?.current) {
-            cardRef.current.flipCard();
-        }
-    };
-
-    return (
-        <View style={styles.container}>
-            <Image source={require('../assets/images/deck image_4x.png')} />
-            {cards.map((card) => (
-                <View key={card.id} style={styles.cardWrapper}>
-                    <Card ref={cardRefs.current[card.id]} n={card.value} />
-                    <Button title="Flip Card" onPress={() => handleFlip(card.id)} />
-                </View>
-            ))}
-        </View>
-    );
-};
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    cardWrapper: {
-        marginBottom: 20,
-        alignItems: 'center',
-    },
-});
-
-export default App;
-*/
 import React, { useRef, useState } from 'react';
 import { View, StyleSheet, Button, Animated, Image, GestureResponderEvent, Dimensions } from 'react-native';
-import Card, { CardRef } from './cards';
+import Card, { CardRef, getDeckImage } from './cards';
 
 const shuffleDeck = (deck: number[]): number[] => {
     const shuffledDeck = [...deck]; // Create a copy of the deck to avoid mutating the original state
@@ -76,10 +21,12 @@ const CardList = () => {
     };
     const [handCards, setHandCards] = useState<{ id: number; value: number, opacity: Animated.Value, translateY: Animated.Value}[]>([]);
     const [hoveredCardId, setHoveredCardId] = useState<number | null>(null);
+    const [liftedCardId, setLiftedCardId] = useState<number | null>(null); // Track lifted card
 
     // Refs for all cards
     const cardRefs = useRef<{ [key: number]: React.RefObject<CardRef> }>({});
     const drawnCardPosition = useRef(new Animated.ValueXY({ x: 16, y: 0 })).current;
+    const drawnCardOpacity = useRef(new Animated.Value(1)).current;
     const addCard = () => {
         if (deck.length === 0) {
             console.log("No more cards in the deck");
@@ -99,6 +46,11 @@ const CardList = () => {
             cardRefs.current[newCard.id] = React.createRef<CardRef>();
         }
         Animated.sequence([
+            Animated.timing(drawnCardOpacity, {
+                toValue: 1,
+                duration: 5,
+                useNativeDriver: true,
+            }),
             Animated.timing(drawnCardPosition, {
                 toValue: {x: 32, y: -64},
                 duration: 500,
@@ -114,6 +66,11 @@ const CardList = () => {
                duration: 20,
                useNativeDriver: true,
             }),
+            Animated.timing(drawnCardOpacity, {
+                toValue: 0,
+                duration: 5,
+                useNativeDriver: true,
+            })
         ]).start(() => {
             cardRefs.current[newCard.id]?.current?.flipCard();
             drawnCardPosition.setValue({x: 16, y: 0}); // Reset position for next card
@@ -142,7 +99,7 @@ const CardList = () => {
             ) {
                 currentlyHoveredCardId = card.id;
 
-                // If it's a new hover, lift the card
+                // Lift the card if it's the hovered card
                 if (hoveredCardId !== card.id) {
                     Animated.timing(card.translateY, {
                         toValue: -30,
@@ -150,8 +107,17 @@ const CardList = () => {
                         useNativeDriver: true,
                     }).start();
                 }
+
+                // Update the position of the lifted card
+                if (liftedCardId === card.id) {
+                    Animated.timing(card.translateY, {
+                        toValue: locationY - 128, // Adjust this to position it relative to the finger
+                        duration: 0, // Instant move
+                        useNativeDriver: true,
+                    }).start();
+                }
             } else if (hoveredCardId === card.id) {
-                // If the finger moves away, lower the previously hovered card
+                // Lower the card if the finger moves away
                 Animated.timing(card.translateY, {
                     toValue: 0,
                     duration: 150,
@@ -169,36 +135,51 @@ const CardList = () => {
             console.log('Card Selected:', hoveredCardId);
         }
 
-        // Lower any lifted card
+        // Reset position of the lifted card
         handCards.forEach((card) => {
-            Animated.timing(card.translateY, {
-                toValue: 0,
-                duration: 150,
-                useNativeDriver: true,
-            }).start();
+            if (liftedCardId === card.id) {
+                Animated.timing(card.translateY, {
+                    toValue: -30,
+                    duration: 150,
+                    useNativeDriver: true,
+                }).start();
+            } else {
+                Animated.timing(card.translateY, {
+                    toValue: 0,
+                    duration: 150,
+                    useNativeDriver: true,
+                }).start();
+            }
         });
 
+        setLiftedCardId(null); // Reset lifted card state
         setHoveredCardId(null); // Reset hover state
     };
+
 
     return (
         <View style={styles.container}>
             <Button title="Draw Card" onPress={addCard} />
             <Button title="Reset" onPress={() => setHandCards([]) /*Dev Button*/} />
             <View>
-                <Image source={require('../assets/images/deck image_4x.png')} style={styles.deckImage} id={"deck_image"}/>
-                <Animated.View style={[styles.cardAnimation, { transform: drawnCardPosition.getTranslateTransform() }]}>
+                <Image source={getDeckImage(deck.length)} style={styles.deckImage} id={"deck_image"}/>
+                <Animated.View style={[styles.cardAnimation, { transform: drawnCardPosition.getTranslateTransform(), opacity: drawnCardOpacity }]}>
                     <Image source={require('../assets/cards/cardback_4x.png')} style={styles.cardImage} />
                 </Animated.View>
             </View>
             <View style={styles.hand}
                   onStartShouldSetResponder={() => true}
                   onResponderMove={handleMove}
+                  onResponderGrant={handleMove}
                   onResponderRelease={handleRelease}
             >
                 {handCards.map((card) => (
-                    <Animated.View key={card.id} style={[ styles.cardWrapper, {opacity: card.opacity, transform: [{translateY: card.translateY}] }]}>
-                        <Card ref={cardRefs.current[card.id]} n={card.value} />
+                    <Animated.View key={card.id} style={[ styles.cardWrapper, {opacity: card.opacity, transform: [{translateY: card.translateY}] }]}
+                                   //onStartShouldSetResponder={() => true}
+                                   //onResponderGrant={handlePressIn}
+                                   //onResponderRelease={handleRelease}
+                    >
+                        <Card ref={cardRefs.current[card.id]} n={card.value}/>
                     </Animated.View>
                 ))}
             </View>
