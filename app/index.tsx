@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { View, StyleSheet, Button, Animated, Image, GestureResponderEvent, Dimensions } from 'react-native';
+import { View, StyleSheet, Button, Animated, Image, GestureResponderEvent, Dimensions, Easing } from 'react-native';
 import Card, { CardRef, getDeckImage } from './cards';
 
 const shuffleDeck = (deck: number[]): number[] => {
@@ -11,7 +11,7 @@ const shuffleDeck = (deck: number[]): number[] => {
     return shuffledDeck; // Return the shuffled deck
 };
 
-const CardList = () => {
+const App = () => {
     const windowWidth = Dimensions.get('window').width;
     const windowHeight = Dimensions.get('window').height;
 
@@ -22,6 +22,7 @@ const CardList = () => {
     const [handCards, setHandCards] = useState<{ id: number; value: number, opacity: Animated.Value, translateY: Animated.Value}[]>([]);
     const [hoveredCardId, setHoveredCardId] = useState<number | null>(null);
     const [liftedCardId, setLiftedCardId] = useState<number | null>(null); // Track lifted card
+    const [selectedCardId, setSelectedCardId] = useState<number | null>(null);
 
     // Refs for all cards
     const cardRefs = useRef<{ [key: number]: React.RefObject<CardRef> }>({});
@@ -77,9 +78,35 @@ const CardList = () => {
         });
     }
 
+    // Selecting a Card
+    const holdTimeout = useRef<NodeJS.Timeout | null>(null);
+    const frameOpacity = useRef(new Animated.Value(0)).current;
+    if (selectedCardId !== null) {
+        if (holdTimeout.current) {
+            clearTimeout(holdTimeout.current);
+        }
+        holdTimeout.current = setTimeout(() => {
+            if (hoveredCardId === selectedCardId) { // Ensure the same card is still hovered
+                Animated.timing(frameOpacity, {
+                    toValue: 1, // Fully visible
+                    duration: 300,
+                    useNativeDriver: true,
+                }).start();
+            }
+        }, 1000); // 1-second delay
+    } else {
+        if (holdTimeout.current) {
+            clearTimeout(holdTimeout.current);
+        }
+        Animated.timing(frameOpacity, {
+            toValue: 0, // Fully visible
+            duration: 300,
+            useNativeDriver: true,
+        }).start();
+    }
     const handleMove = (e: GestureResponderEvent) => {
         const { pageX, locationY } = e.nativeEvent;
-        console.log(pageX, locationY);
+        //console.log(pageX, locationY);
 
         let currentlyHoveredCardId: number | null = null;
 
@@ -106,6 +133,7 @@ const CardList = () => {
                         duration: 150,
                         useNativeDriver: true,
                     }).start();
+                    setSelectedCardId(card.id);
                 }
 
                 // Update the position of the lifted card
@@ -154,6 +182,7 @@ const CardList = () => {
 
         setLiftedCardId(null); // Reset lifted card state
         setHoveredCardId(null); // Reset hover state
+        setSelectedCardId(null);
     };
 
 
@@ -180,6 +209,10 @@ const CardList = () => {
                                    //onResponderRelease={handleRelease}
                     >
                         <Card ref={cardRefs.current[card.id]} n={card.value}/>
+                        <Animated.View style={[StyleSheet.absoluteFillObject, {opacity: frameOpacity}]}>
+                            <Image source={require('../assets/images/frames/card_select_frame_purple.png')}
+                                   /*style={StyleSheet.absoluteFillObject}*//>
+                        </Animated.View>
                     </Animated.View>
                 ))}
             </View>
@@ -216,4 +249,4 @@ const styles = StyleSheet.create({
         marginHorizontal: 2,
     },
 });
-export default CardList;
+export default App;
